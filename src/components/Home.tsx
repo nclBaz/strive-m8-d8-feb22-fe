@@ -26,6 +26,10 @@ import { Message, User } from '../types'
 // 11) LET'S FETCH THE ONLINE USERS LIST WHEN 'newConnection' HAPPENS
 // 12) LET'S ALSO MOVE THIS LAST EVENT LISTENER IN THE 'loggedIn' ONE, SINCE
 // WE WANT TO UNLOCK THIS FEATURE JUST AFTER THE LOG IN PROCESS
+// 13) SENDING A MESSAGE SHOULD FILL THE SENDER'S CHATHISTORY AS WELL AS EMITTING AN EVENT OF TYPE 'sendmessage'
+// 14) THE OTHER CLIENTS SHOULD LISTEN FOR THIS EVENT IN ORDER TO ALSO FILL THEIR CHATHISTORY!
+// 15) WE CAN MAKE OTHER CLIENTS AWARE OF OUR NEW MESSAGE SETTING AN EVENT LISTENER FOR A 'message' EVENT
+// AND FILLING THEIR CHATHISTORIES AS WELL
 
 const ADDRESS = 'http://localhost:3030'
 const socket = io(ADDRESS, { transports: ['websocket'] })
@@ -63,7 +67,20 @@ const Home = () => {
         // console.log('a new challenger appears!')
         fetchOnlineUsers()
       })
+
+      socket.on('message', (bouncedMessage) => {
+        setChatHistory((evaluatedChatHistory) => [
+          ...evaluatedChatHistory,
+          bouncedMessage,
+        ])
+        // looks like the one receiving this 'message' event is appending
+        // the last message to an empty chatHistory...?
+        // we can fix this using the second overload of the setState function,
+        // passing a callback carrying the up-to-date value and returning
+        // the new chatHistory
+      })
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleUsernameSubmit = () => {
@@ -132,7 +149,10 @@ const Home = () => {
           {/* MIDDLE AREA: CHAT HISTORY */}
           <ListGroup>
             {chatHistory.map((element, i) => (
-              <ListGroup.Item key={i}>{element.text}</ListGroup.Item>
+              <ListGroup.Item key={i}>
+                {element.sender} | {element.text} at{' '}
+                {new Date(element.timestamp).toLocaleTimeString('en-US')}
+              </ListGroup.Item>
             ))}
           </ListGroup>
           {/* BOTTOM AREA: NEW MESSAGE */}
