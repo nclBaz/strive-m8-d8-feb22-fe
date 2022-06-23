@@ -8,6 +8,7 @@ import {
   ListGroup,
 } from 'react-bootstrap'
 import { io } from 'socket.io-client'
+import { Message, User } from '../types'
 
 // 1) EVERY TIME WE REFRESH THE PAGE, THE CLIENTS CONNECTS TO THE SERVER
 // 2) IF THIS CONNECTION ESTABLISHES CORRECTLY, THE SERVER WILL EMIT TO US
@@ -19,6 +20,12 @@ import { io } from 'socket.io-client'
 // TO US CALLED 'loggedin'
 // 7) FINALLY WE CAN LISTEN FOR THIS 'loggedin' EVENT AND acknowledge THE SUCCESSFUL LOG IN PROCESS
 // 8) IF WE'RE SUCCESFULLY LOGGED IN, LET's DISABLE THE USERNAME INPUT FIELD AND ENABLE THE MESSAGE ONE
+// 9) AND LET'S FETCH THE ONLINE USERS LIST!
+// 10) LET'S ALSO SET UP AN EVENT LISTENER FOR A 'newConnection' EVENT, THAT WILL NOTIFY
+// ALL THE OTHER CONNECTED CLIENTS ABOUT A NEW CHALLENGER PRESENTING!
+// 11) LET'S FETCH THE ONLINE USERS LIST WHEN 'newConnection' HAPPENS
+// 12) LET'S ALSO MOVE THIS LAST EVENT LISTENER IN THE 'loggedIn' ONE, SINCE
+// WE WANT TO UNLOCK THIS FEATURE JUST AFTER THE LOG IN PROCESS
 
 const ADDRESS = 'http://localhost:3030'
 const socket = io(ADDRESS, { transports: ['websocket'] })
@@ -29,6 +36,8 @@ const Home = () => {
   const [username, setUsername] = useState('')
   const [message, setMessage] = useState('')
   const [loggedIn, setLoggedIn] = useState(false)
+  const [onlineUsers, setOnlineUsers] = useState<User[]>([])
+  const [chatHistory, setChatHistory] = useState<Message[]>([])
 
   useEffect(() => {
     // this code will be executed just once!
@@ -45,6 +54,15 @@ const Home = () => {
     socket.on('loggedin', () => {
       console.log('logged in successfully!')
       setLoggedIn(true)
+      fetchOnlineUsers()
+
+      // I moved this newConnection event listener in the loggedin one,
+      // since I don't want this "trap" to be set from the first moment
+      socket.on('newConnection', () => {
+        console.log('a new client just connected!')
+        // console.log('a new challenger appears!')
+        fetchOnlineUsers()
+      })
     })
   }, [])
 
@@ -60,6 +78,34 @@ const Home = () => {
     // if everything goes well the backend will emit us back another event
     // called 'loggedin' <-- this concludes the login process and puts us
     // in the online users list
+  }
+
+  const fetchOnlineUsers = async () => {
+    try {
+      let response = await fetch(ADDRESS + '/online-users')
+      if (response.ok) {
+        let { onlineUsers } = await response.json()
+        setOnlineUsers(onlineUsers)
+      } else {
+        console.log('error happened fetching the users')
+      }
+    } catch (error) {
+      console.log(error)
+    }
+  }
+
+  const sendMessage = () => {
+    // this function executes just for the sender for the message!
+    const newMessage: Message = {
+      text: message,
+      sender: username,
+      timestamp: Date.now(),
+    }
+
+    socket.emit('sendmessage', newMessage)
+    setChatHistory([...chatHistory, newMessage])
+    // this is appending my new message to the chat history in this very moment
+    setMessage('')
   }
 
   return (
@@ -85,14 +131,17 @@ const Home = () => {
           {/* )} */}
           {/* MIDDLE AREA: CHAT HISTORY */}
           <ListGroup>
-            <ListGroup.Item>Cras justo odio</ListGroup.Item>
-            <ListGroup.Item>Dapibus ac facilisis in</ListGroup.Item>
-            <ListGroup.Item>Morbi leo risus</ListGroup.Item>
-            <ListGroup.Item>Porta ac consectetur ac</ListGroup.Item>
-            <ListGroup.Item>Vestibulum at eros</ListGroup.Item>
+            {chatHistory.map((element, i) => (
+              <ListGroup.Item key={i}>{element.text}</ListGroup.Item>
+            ))}
           </ListGroup>
           {/* BOTTOM AREA: NEW MESSAGE */}
-          <Form>
+          <Form
+            onSubmit={(e) => {
+              e.preventDefault()
+              sendMessage()
+            }}
+          >
             <FormControl
               placeholder="Write your message here"
               value={message}
@@ -104,12 +153,13 @@ const Home = () => {
         <Col md={3}>
           {/* ONLINE USERS SECTION */}
           <div className="mb-3">Connected users:</div>
+          {onlineUsers.length === 0 && (
+            <ListGroup.Item>Log in to check who's online!</ListGroup.Item>
+          )}
           <ListGroup>
-            <ListGroup.Item>Cras justo odio</ListGroup.Item>
-            <ListGroup.Item>Dapibus ac facilisis in</ListGroup.Item>
-            <ListGroup.Item>Morbi leo risus</ListGroup.Item>
-            <ListGroup.Item>Porta ac consectetur ac</ListGroup.Item>
-            <ListGroup.Item>Vestibulum at eros</ListGroup.Item>
+            {onlineUsers.map((user) => (
+              <ListGroup.Item key={user.id}>{user.username}</ListGroup.Item>
+            ))}
           </ListGroup>
         </Col>
       </Row>
