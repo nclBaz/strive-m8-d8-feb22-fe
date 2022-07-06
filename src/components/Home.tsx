@@ -94,6 +94,7 @@ const Home = () => {
     // the type of the event the server is already listening for
     socket.emit('setUsername', {
       username: username,
+      room
     })
     // after sending our username from the client,
     // if everything goes well the backend will emit us back another event
@@ -106,10 +107,10 @@ const Home = () => {
     const newMessage: Message = {
       text: message,
       sender: username,
-      timestamp: Date.now(),
+      createdAt: new Date().toLocaleString('en-US')
     }
 
-    socket.emit('sendmessage', newMessage)
+    socket.emit('sendmessage', {message: newMessage, room})
     setChatHistory([...chatHistory, newMessage])
     // this is appending my new message to the chat history in this very moment
     setMessage('')
@@ -118,6 +119,23 @@ const Home = () => {
   const toggleRoom = () => {
     setRoom(room => room === "blue" ? "red": "blue")
   }
+
+  const getRoomHistory = async () => {
+    const response = await fetch(`${ADDRESS}/rooms/${room}/messages`)
+
+    const messages = await response.json()
+
+    setChatHistory(messages)
+  }
+
+  useEffect(() => {
+    console.log("Room changed, current room is ", room)
+    socket.on("loggedin", getRoomHistory) // add the event listener
+
+    return () => {
+      socket.off("loggedin", getRoomHistory) // remove the event listener
+    }
+  }, [room])
 
   return (
     <Container fluid>
@@ -146,7 +164,7 @@ const Home = () => {
             {chatHistory.map((element, i) => (
               <ListGroup.Item key={i}>
                 {element.sender} | {element.text} at{' '}
-                {new Date(element.timestamp).toLocaleTimeString('en-US')}
+                {new Date(element.createdAt).toLocaleTimeString('en-US')}
               </ListGroup.Item>
             ))}
           </ListGroup>
@@ -173,7 +191,7 @@ const Home = () => {
           )}
           <ListGroup>
             {onlineUsers.map((user) => (
-              <ListGroup.Item key={user.id}>{user.username}</ListGroup.Item>
+              <ListGroup.Item key={user.id} style={{color: user.room}}>{user.username}</ListGroup.Item>
             ))}
           </ListGroup>
         </Col>
