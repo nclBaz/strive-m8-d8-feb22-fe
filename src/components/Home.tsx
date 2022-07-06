@@ -6,6 +6,7 @@ import {
   Form,
   FormControl,
   ListGroup,
+  Button
 } from 'react-bootstrap'
 import { io } from 'socket.io-client'
 import { Message, User } from '../types'
@@ -31,7 +32,7 @@ import { Message, User } from '../types'
 // 15) WE CAN MAKE OTHER CLIENTS AWARE OF OUR NEW MESSAGE SETTING AN EVENT LISTENER FOR A 'message' EVENT
 // AND FILLING THEIR CHATHISTORIES AS WELL
 
-const ADDRESS = 'http://localhost:3030'
+const ADDRESS = 'http://localhost:3001'
 const socket = io(ADDRESS, { transports: ['websocket'] })
 // overriding the default trasports value in order to just leverage the
 // websocket protocol
@@ -42,6 +43,7 @@ const Home = () => {
   const [loggedIn, setLoggedIn] = useState(false)
   const [onlineUsers, setOnlineUsers] = useState<User[]>([])
   const [chatHistory, setChatHistory] = useState<Message[]>([])
+  const [room, setRoom] = useState<"blue" | "red">("blue")
 
   useEffect(() => {
     // this code will be executed just once!
@@ -55,17 +57,19 @@ const Home = () => {
 
     // let's now listen for another type of event, 'loggedin'
     // this should happen once AFTER sending our username
-    socket.on('loggedin', () => {
+    socket.on('loggedin', onlineUsers => {
       console.log('logged in successfully!')
       setLoggedIn(true)
-      fetchOnlineUsers()
+      setOnlineUsers(onlineUsers)
+      // fetchOnlineUsers()
 
       // I moved this newConnection event listener in the loggedin one,
       // since I don't want this "trap" to be set from the first moment
-      socket.on('newConnection', () => {
+      socket.on('newConnection', onlineUsers => {
         console.log('a new client just connected!')
         // console.log('a new challenger appears!')
-        fetchOnlineUsers()
+        // fetchOnlineUsers()
+        setOnlineUsers(onlineUsers)
       })
 
       socket.on('message', (bouncedMessage) => {
@@ -97,20 +101,6 @@ const Home = () => {
     // in the online users list
   }
 
-  const fetchOnlineUsers = async () => {
-    try {
-      let response = await fetch(ADDRESS + '/online-users')
-      if (response.ok) {
-        let { onlineUsers } = await response.json()
-        setOnlineUsers(onlineUsers)
-      } else {
-        console.log('error happened fetching the users')
-      }
-    } catch (error) {
-      console.log(error)
-    }
-  }
-
   const sendMessage = () => {
     // this function executes just for the sender for the message!
     const newMessage: Message = {
@@ -123,6 +113,10 @@ const Home = () => {
     setChatHistory([...chatHistory, newMessage])
     // this is appending my new message to the chat history in this very moment
     setMessage('')
+  }
+
+  const toggleRoom = () => {
+    setRoom(room => room === "blue" ? "red": "blue")
   }
 
   return (
@@ -144,6 +138,7 @@ const Home = () => {
               onChange={(e) => setUsername(e.target.value)}
               disabled={loggedIn}
             />
+            <Button variant={room === "blue" ? "primary": "danger"} onClick={toggleRoom}>Switch Room</Button>
           </Form>
           {/* )} */}
           {/* MIDDLE AREA: CHAT HISTORY */}
